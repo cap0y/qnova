@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 메달 리본 -->
+  <path d="M60 20C60 20 45 10 40 5C35 0 25 0 25 5C25 10 35 25 35 25L60 20Z" fill="#4169E1"/>
+  <path d="M60 20C60 20 75 10 80 5C85 0 95 0 95 5C95 10 85 25 85 25L60 20Z" fill="#4169E1"/>
+  
+  <!-- 메달 본체 -->
+  <circle cx="60" cy="70" r="45" fill="#FFD700"/>
+  <circle cx="60" cy="70" r="40" fill="#DAA520"/>
+  <circle cx="60" cy="70" r="35" fill="#FFD700"/>
+  
+  <!-- 월계수 -->
+  <path d="M40 50C40 50 50 45 60 45C70 45 80 50 80 50" stroke="#006400" stroke-width="2"/>
+  <path d="M35 60C35 60 48 55 60 55C72 55 85 60 85 60" stroke="#006400" stroke-width="2"/>
+  
+  <!-- 별 모양 -->
+  <path d="M60 55L65 70L80 70L70 80L75 95L60 85L45 95L50 80L40 70L55 70L60 55Z" fill="#DAA520"/>
+</svg> 

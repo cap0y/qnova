@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 외부 원 -->
+  <circle cx="50" cy="50" r="48" stroke="#FF0000" stroke-width="2"/>
+  <circle cx="50" cy="50" r="45" stroke="#FF0000" stroke-width="1"/>
+  
+  <!-- 회사명 -->
+  <path d="M50 20C33.4315 20 20 33.4315 20 50C20 66.5685 33.4315 80 50 80C66.5685 80 80 66.5685 80 50C80 33.4315 66.5685 20 50 20ZM50 75C36.1929 75 25 63.8071 25 50C25 36.1929 36.1929 25 50 25C63.8071 25 75 36.1929 75 50C75 63.8071 63.8071 75 50 75Z" fill="#FF0000"/>
+  
+  <!-- 중앙 텍스트 -->
+  <text x="50" y="45" font-family="Arial" font-size="12" fill="#FF0000" text-anchor="middle">지누켐</text>
+  <text x="50" y="60" font-family="Arial" font-size="10" fill="#FF0000" text-anchor="middle">대표이사</text>
+</svg> 
