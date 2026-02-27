@@ -222,7 +222,7 @@ process.on('uncaughtException', (error) => {
     }
 
     // Start server
-    const port = 5000;
+    const port = parseInt(process.env.PORT || "5000", 10);
     server.listen(port, "0.0.0.0", () => {
       console.log(`🎓 Korean Education Platform serving on port ${port}`);
     });
