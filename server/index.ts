@@ -308,6 +308,22 @@ process.on('uncaughtException', (error) => {
       console.error("Database schema update warning:", dbErr);
     }
 
+    // saved_custom_prompts 테이블 생성
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS saved_custom_prompts (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          content TEXT NOT NULL,
+          created_at TIMESTAMP DEFAULT NOW()
+        );
+      `);
+      console.log("✅ saved_custom_prompts 테이블 준비 완료");
+    } catch (e) {
+      console.log("Notice: saved_custom_prompts table:", e);
+    }
+
     // Seed database on startup (with better error handling)
     try {
       await seedDatabase();

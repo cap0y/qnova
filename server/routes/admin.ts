@@ -355,6 +355,58 @@ export function registerAdminRoutes(app: Express) {
     }
   });
 
+  // ─── 저장된 커스텀 프롬프트 CRUD ─────────────────────────────────────────
+
+  // 목록 조회 (로그인 사용자 본인 것만)
+  app.get("/api/saved-prompts", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "로그인이 필요합니다." });
+    try {
+      const result = await pool.query(
+        "SELECT id, name, content, created_at FROM saved_custom_prompts WHERE user_id = $1 ORDER BY created_at DESC",
+        [(req.user as any).id]
+      );
+      res.json(result.rows);
+    } catch (e) {
+      console.error("saved-prompts GET error:", e);
+      res.status(500).json({ message: "서버 오류" });
+    }
+  });
+
+  // 새 프롬프트 저장
+  app.post("/api/saved-prompts", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "로그인이 필요합니다." });
+    const { name, content } = req.body;
+    if (!name?.trim() || !content?.trim()) {
+      return res.status(400).json({ message: "이름과 내용을 모두 입력해주세요." });
+    }
+    try {
+      const result = await pool.query(
+        "INSERT INTO saved_custom_prompts (user_id, name, content) VALUES ($1, $2, $3) RETURNING id, name, content, created_at",
+        [(req.user as any).id, name.trim(), content.trim()]
+      );
+      res.status(201).json(result.rows[0]);
+    } catch (e) {
+      console.error("saved-prompts POST error:", e);
+      res.status(500).json({ message: "서버 오류" });
+    }
+  });
+
+  // 삭제
+  app.delete("/api/saved-prompts/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "로그인이 필요합니다." });
+    try {
+      const result = await pool.query(
+        "DELETE FROM saved_custom_prompts WHERE id = $1 AND user_id = $2 RETURNING id",
+        [req.params.id, (req.user as any).id]
+      );
+      if (result.rowCount === 0) return res.status(404).json({ message: "찾을 수 없습니다." });
+      res.json({ success: true });
+    } catch (e) {
+      console.error("saved-prompts DELETE error:", e);
+      res.status(500).json({ message: "서버 오류" });
+    }
+  });
+
   // 결제 목록 조회
   app.get("/api/admin/payments", requireAdmin, async (req, res) => {
     try {

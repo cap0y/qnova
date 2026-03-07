@@ -83,19 +83,51 @@ export default function SeminarManagement({ user }: SeminarManagementProps) {
 
   // RAG & Custom Prompt State
   const [ragFile, setRagFile] = useState<File | null>(null);
-  const [customPrompt, setCustomPrompt] = useState<string>(() => {
-    try { return localStorage.getItem("qnova_custom_prompt") || ""; } catch { return ""; }
-  });
-  const [customPromptSaved, setCustomPromptSaved] = useState(false);
+  const [customPrompt, setCustomPrompt] = useState<string>("");
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
 
-  const saveCustomPrompt = () => {
-    try {
-      localStorage.setItem("qnova_custom_prompt", customPrompt);
-      setCustomPromptSaved(true);
-      setTimeout(() => setCustomPromptSaved(false), 2000);
-    } catch {}
-  };
+  // 저장된 프롬프트 다이얼로그 상태
+  const [showSavePromptDialog, setShowSavePromptDialog] = useState(false);
+  const [showSavedPromptList, setShowSavedPromptList] = useState(false);
+  const [savePromptName, setSavePromptName] = useState("");
+
+  type SavedPrompt = { id: number; name: string; content: string; created_at: string };
+
+  // 저장된 프롬프트 목록 조회
+  const { data: savedPrompts, refetch: refetchSavedPrompts } = useQuery<SavedPrompt[]>({
+    queryKey: ["/api/saved-prompts"],
+    enabled: showSavedPromptList,
+  });
+
+  // 프롬프트 저장 뮤테이션
+  const savePromptMutation = useMutation({
+    mutationFn: async ({ name, content }: { name: string; content: string }) => {
+      const res = await fetch("/api/saved-prompts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, content }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      setShowSavePromptDialog(false);
+      setSavePromptName("");
+      refetchSavedPrompts();
+      toast({ title: "저장 완료", description: "추가 지시사항이 저장되었습니다." });
+    },
+    onError: () => toast({ title: "저장 실패", variant: "destructive" }),
+  });
+
+  // 프롬프트 삭제 뮤테이션
+  const deletePromptMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/saved-prompts/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+    },
+    onSuccess: () => refetchSavedPrompts(),
+    onError: () => toast({ title: "삭제 실패", variant: "destructive" }),
+  });
 
   // Category State
   const [selectedCategory, setSelectedCategory] = useState<string>("analysis");
@@ -1015,21 +1047,61 @@ export default function SeminarManagement({ user }: SeminarManagementProps) {
                       <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide flex items-center gap-1">
                         <MessageSquarePlus className="w-3 h-3" /> 추가 지시사항 (선택)
                       </label>
-                      <button
-                        onClick={saveCustomPrompt}
-                        className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
-                          customPromptSaved
-                            ? "bg-green-100 text-green-600"
-                            : "bg-gray-100 text-gray-500 hover:bg-purple-100 hover:text-[#6E49E9]"
-                        }`}
-                      >
-                        {customPromptSaved ? (
-                          <><Check className="w-3 h-3" /> 저장됨</>
-                        ) : (
-                          <><Save className="w-3 h-3" /> 저장</>
-                        )}
-                      </button>
+                      <div className="flex items-center gap-1">
+                        {/* 저장된 목록 불러오기 */}
+                        <button
+                          onClick={() => setShowSavedPromptList(!showSavedPromptList)}
+                          className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-500 hover:bg-blue-50 hover:text-blue-600 transition-all"
+                        >
+                          <ChevronDown className="w-3 h-3" /> 불러오기
+                        </button>
+                        {/* 현재 내용 저장 */}
+                        <button
+                          onClick={() => { if (customPrompt.trim()) setShowSavePromptDialog(true); }}
+                          disabled={!customPrompt.trim()}
+                          className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-500 hover:bg-purple-100 hover:text-[#6E49E9] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                        >
+                          <Save className="w-3 h-3" /> 저장
+                        </button>
+                      </div>
                     </div>
+
+                    {/* 저장된 프롬프트 목록 드롭다운 */}
+                    {showSavedPromptList && (
+                      <div className="border border-gray-200 rounded-xl bg-white shadow-md overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                        <div className="px-3 py-2 border-b bg-gray-50 flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-gray-500">저장된 지시사항</span>
+                          <button onClick={() => setShowSavedPromptList(false)} className="text-gray-400 hover:text-gray-600">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                        {!savedPrompts || savedPrompts.length === 0 ? (
+                          <div className="py-4 text-center text-[11px] text-gray-400">저장된 지시사항이 없습니다.</div>
+                        ) : (
+                          <div className="max-h-40 overflow-y-auto">
+                            {savedPrompts.map((p) => (
+                              <div
+                                key={p.id}
+                                className="flex items-center justify-between px-3 py-2 hover:bg-purple-50 cursor-pointer group border-b border-gray-50 last:border-b-0"
+                                onClick={() => { setCustomPrompt(p.content); setShowSavedPromptList(false); }}
+                              >
+                                <div className="flex-1 min-w-0 mr-2">
+                                  <p className="text-xs font-bold text-gray-700 truncate">{p.name}</p>
+                                  <p className="text-[10px] text-gray-400 truncate">{p.content}</p>
+                                </div>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); deletePromptMutation.mutate(p.id); }}
+                                  className="shrink-0 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-100 hover:text-red-500 transition-all"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     <Textarea
                       placeholder={`예) "3번 문제는 빈칸 추론으로 만들어줘"\n"단어 난이도는 고등 수준으로 맞춰줘"\n"지문의 2~3단락에 집중해서 문제를 출제해"`}
                       value={customPrompt}
@@ -1038,6 +1110,44 @@ export default function SeminarManagement({ user }: SeminarManagementProps) {
                       rows={3}
                     />
                   </div>
+
+                  {/* 저장 이름 입력 다이얼로그 */}
+                  <Dialog open={showSavePromptDialog} onOpenChange={setShowSavePromptDialog}>
+                    <DialogContent className="max-w-sm">
+                      <DialogHeader>
+                        <DialogTitle className="text-sm">지시사항 저장</DialogTitle>
+                        <DialogDescription className="text-xs text-gray-500">
+                          이 지시사항에 이름을 지정하여 저장하세요.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="py-2 space-y-3">
+                        <div>
+                          <label className="text-xs font-bold text-gray-600 mb-1 block">이름</label>
+                          <Input
+                            placeholder="예) 고등 빈칸 추론 전용"
+                            value={savePromptName}
+                            onChange={(e) => setSavePromptName(e.target.value)}
+                            className="text-sm"
+                            onKeyDown={(e) => { if (e.key === "Enter" && savePromptName.trim()) savePromptMutation.mutate({ name: savePromptName, content: customPrompt }); }}
+                          />
+                        </div>
+                        <div className="bg-gray-50 rounded-lg p-2 text-[11px] text-gray-500 max-h-20 overflow-y-auto whitespace-pre-wrap">
+                          {customPrompt}
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" size="sm" onClick={() => setShowSavePromptDialog(false)}>취소</Button>
+                        <Button
+                          size="sm"
+                          className="bg-[#6E49E9] text-white"
+                          disabled={!savePromptName.trim() || savePromptMutation.isPending}
+                          onClick={() => savePromptMutation.mutate({ name: savePromptName, content: customPrompt })}
+                        >
+                          {savePromptMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "저장"}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
 
                   {/* 고급 설정 토글 */}
                   <button
