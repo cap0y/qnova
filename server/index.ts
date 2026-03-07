@@ -16,6 +16,7 @@ import { dirname, join } from "path";
 import { registerBusinessRoutes } from "./routes/business";
 import { registerUserRoutes } from "./routes/user";
 import { storage } from "./storage";
+import { pool } from "./db";
 import { cleanupOldChats } from "./cleanup";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -280,7 +281,7 @@ process.on('uncaughtException', (error) => {
         ];
 
         for (const tmpl of defaultTemplates) {
-          await storage.query(`
+          await pool.query(`
             INSERT INTO prompt_templates (type, name, role, task, constraints, output_format, is_active)
             VALUES ($1, $2, $3, $4, $5, $6, true)
             ON CONFLICT (type) DO UPDATE SET

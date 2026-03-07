@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { storage } from "./storage";
+import { pool } from "./db";
 
 import {sendAdminNotification} from "./websocket";
 import { registerAdminRoutes } from "./routes/admin";
@@ -68,12 +69,29 @@ export function registerRoutes(app: Express): void {
 
     try {
       let extractedText = "";
-      const { category, level } = req.body; // 카테고리 및 레벨 정보 수신
+      const { category, level, presetType } = req.body; // 카테고리, 레벨, 프리셋 유형 수신
       
       // 파일명이 깨지는 문제 해결 (Latin1 -> UTF-8 변환)
       const originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
       const fileType = path.extname(originalName).toLowerCase();
       
+      // ─── 문제 유형 프리셋 로드 (관리자 설정 기반) ─────────────────────────────
+      let presetTemplate: { role: string; task: string; constraints: string; output_format: string; name: string } | null = null;
+      if (presetType) {
+        try {
+          const presetResult = await pool.query(
+            "SELECT role, task, constraints, output_format, name FROM prompt_templates WHERE type = $1 AND is_active = true",
+            [presetType]
+          );
+          if (presetResult.rows.length > 0) {
+            presetTemplate = presetResult.rows[0];
+            console.log(`[Preset] 문제 유형 프리셋 로드: "${presetTemplate?.name}" (type: ${presetType})`);
+          }
+        } catch (e) {
+          console.error("[Preset] 프리셋 로드 실패:", e);
+        }
+      }
+
       // AI Analysis (Gemini) - Educational Content Analysis
       let aiAnalysis = null;
       const apiKey = (req.headers['x-gemini-api-key'] as string) || process.env.GEMINI_API_KEY;
@@ -82,8 +100,20 @@ export function registerRoutes(app: Express): void {
       if (apiKey) {
         try {
           const genAI = new GoogleGenerativeAI(apiKey);
+
+          // ─── 프리셋이 있으면 System Instruction으로 주입 ──────────────────────
+          const systemInstruction = presetTemplate
+            ? [
+                `## 역할 (Role)\n${presetTemplate.role}`,
+                `## 작업 (Task)\n${presetTemplate.task}`,
+                `## 제약 사항 (Constraints)\n${presetTemplate.constraints}`,
+                `## 출력 형식 (Output Format - JSON)\n반드시 아래 JSON 형식을 엄격히 준수하여 응답해:\n${presetTemplate.output_format}`,
+              ].join("\n\n")
+            : undefined;
+
           const model = genAI.getGenerativeModel({ 
             model: modelName,
+            ...(systemInstruction ? { systemInstruction } : {}),
             generationConfig: {
               maxOutputTokens: 24000, 
               temperature: 0.2,
@@ -182,8 +212,18 @@ export function registerRoutes(app: Express): void {
                 const targetLevel = levelMap[level] || level;
                 levelInstruction = `\n\n**IMPORTANT - TARGET AUDIENCE LEVEL**: ${targetLevel}\nPlease strictly adjust the difficulty of vocabulary, sentence structure, and problem logic to match this level.`;
             }
-            
-            if (category === "word") {
+
+            // ─── 프리셋 선택 시: System Instruction이 역할/제약/형식을 담당 ──────────────
+            // 사용자 프롬프트에는 지문만 넘기고 JSON 응답을 요구
+            if (presetTemplate) {
+              prompt = `아래 영어 지문을 분석하여 System Instruction에 정의된 문제를 생성해 주세요.${levelInstruction}
+
+반드시 유효한 JSON 형식으로만 응답하세요. 설명이나 마크다운 코드블록(예: \`\`\`json)은 포함하지 마세요.
+
+[지문]
+${extractedText || "(파일에서 추출된 텍스트를 분석합니다)"}`;
+            } else if (category === "word") {
+              // 기존 어휘 분석 프롬프트
               prompt = `
                 Act as an expert English teacher creating a **VOCABULARY LIST** from the provided text.
                 
@@ -634,6 +674,21 @@ export function registerRoutes(app: Express): void {
                }
             }
           }
+
+          // ─── 프리셋 결과 래핑: frontend가 인식할 수 있는 구조로 변환 ──────────────
+          if (presetTemplate && aiAnalysis) {
+            aiAnalysis = {
+              title: `${presetTemplate.name} - 생성 결과`,
+              presetQuestion: aiAnalysis,      // Gemini가 생성한 실제 문제 데이터
+              presetType: presetType,
+              presetName: presetTemplate.name,
+              // 표준 필드는 빈 값으로 (필요 시 별도 분석 가능)
+              sentences: [],
+              structure: { summary: "", sections: [] },
+              vocabulary: [],
+            };
+          }
+
         } catch (error) {
           console.error("AI Analysis failed:", error);
           // Continue without AI analysis if it fails

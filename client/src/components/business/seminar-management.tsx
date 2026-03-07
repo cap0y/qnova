@@ -42,6 +42,8 @@ import {
   Key,
   Sparkles,
   ChevronRight,
+  BookOpenCheck,
+  Copy,
 } from "lucide-react";
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
@@ -1108,6 +1110,143 @@ export default function SeminarManagement({ user }: SeminarManagementProps) {
     return null;
   };
 
+  // ─── 프리셋 문제 결과 렌더러 ────────────────────────────────────────────────
+  const renderPresetQuestionResult = (presetQuestion: any, presetName: string, presetType: string) => {
+    if (!presetQuestion) return null;
+
+    const copyToClipboard = (text: string) => {
+      navigator.clipboard.writeText(text);
+      toast({ title: "복사 완료", description: "클립보드에 복사되었습니다." });
+    };
+
+    // 문제 유형별 렌더링
+    const renderQuestionContent = () => {
+      // 순서 배열 유형
+      if (presetType === "order" && presetQuestion.given) {
+        return (
+          <div className="space-y-4">
+            <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
+              <p className="text-[10px] font-bold text-blue-500 mb-2 uppercase tracking-wide">주어진 글</p>
+              <p className="text-sm leading-relaxed text-slate-800 font-serif">{presetQuestion.given}</p>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {["A", "B", "C"].map((key) => (
+                <div key={key} className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                  <p className="text-[10px] font-bold text-slate-400 mb-1.5">({key})</p>
+                  <p className="text-xs leading-relaxed text-slate-700">{presetQuestion.paragraphs?.[key]}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      }
+      // 요약문 완성 유형
+      if (presetType === "summary" && presetQuestion.summary) {
+        return (
+          <div className="space-y-3">
+            {presetQuestion.passage && (
+              <div className="bg-slate-50 rounded-xl p-4 border text-sm leading-relaxed text-slate-700 font-serif">
+                {presetQuestion.passage}
+              </div>
+            )}
+            <div className="bg-amber-50 rounded-xl p-4 border border-amber-100">
+              <p className="text-[10px] font-bold text-amber-600 mb-2">요약문</p>
+              <p className="text-sm font-bold text-slate-800">{presetQuestion.summary}</p>
+            </div>
+          </div>
+        );
+      }
+      // 일반 지문 포함 유형 (어휘/문법/주제/빈칸)
+      return (
+        <div className="space-y-3">
+          {presetQuestion.passage && (
+            <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 text-sm leading-loose text-slate-700 font-serif whitespace-pre-wrap">
+              {presetQuestion.passage}
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    // 선택지 렌더링 (5지선다)
+    const renderOptions = (options: string[], label?: string) => {
+      if (!options || options.length === 0) return null;
+      return (
+        <div className="space-y-1.5">
+          {label && <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-2">{label}</p>}
+          {options.map((opt, idx) => (
+            <div key={idx} className="flex items-start gap-2.5 px-3 py-2 rounded-lg bg-white border border-slate-100 hover:border-blue-200 transition-colors">
+              <span className="text-sm font-bold text-slate-400 shrink-0">{["①","②","③","④","⑤"][idx]}</span>
+              <span className="text-sm text-slate-700 leading-tight">{opt}</span>
+            </div>
+          ))}
+        </div>
+      );
+    };
+
+    return (
+      <div className="bg-white rounded-2xl border border-purple-200 shadow-lg overflow-hidden">
+        {/* 헤더 */}
+        <div className="bg-gradient-to-r from-purple-50 to-white px-6 py-4 border-b border-purple-100 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-purple-100 rounded-xl">
+              <BookOpenCheck className="w-4 h-4 text-purple-600" />
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-purple-400 uppercase tracking-wide">AI 생성 문제</p>
+              <h4 className="text-sm font-bold text-gray-800">{presetName}</h4>
+            </div>
+          </div>
+          <button
+            onClick={() => copyToClipboard(JSON.stringify(presetQuestion, null, 2))}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-500 hover:text-purple-600 border border-gray-200 hover:border-purple-300 rounded-lg transition-colors"
+          >
+            <Copy className="w-3 h-3" /> 복사
+          </button>
+        </div>
+
+        <div className="p-6 space-y-5">
+          {/* 문제 텍스트 */}
+          {presetQuestion.question && (
+            <div className="flex gap-3">
+              <span className="w-5 h-5 bg-slate-900 text-white text-[10px] font-bold rounded-full flex items-center justify-center shrink-0 mt-0.5">Q</span>
+              <p className="text-[15px] font-bold text-slate-900 leading-snug">{presetQuestion.question}</p>
+            </div>
+          )}
+
+          {/* 지문 / 단락 */}
+          {renderQuestionContent()}
+
+          {/* 선택지 */}
+          {presetType === "summary" ? (
+            <div className="grid grid-cols-2 gap-4">
+              {presetQuestion.optionsA && renderOptions(presetQuestion.optionsA, "(A)")}
+              {presetQuestion.optionsB && renderOptions(presetQuestion.optionsB, "(B)")}
+            </div>
+          ) : (
+            renderOptions(presetQuestion.options)
+          )}
+
+          {/* 정답 & 해설 */}
+          <div className="border-t border-slate-100 pt-4 space-y-3">
+            {presetQuestion.answer && (
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-bold text-slate-500 w-10 shrink-0">정답</span>
+                <span className="px-3 py-1 bg-blue-600 text-white text-sm font-bold rounded-lg">{presetQuestion.answer}</span>
+              </div>
+            )}
+            {presetQuestion.explanation && (
+              <div className="flex gap-3">
+                <span className="text-xs font-bold text-slate-500 w-10 shrink-0">해설</span>
+                <p className="text-xs text-slate-600 leading-relaxed flex-1 bg-slate-50 p-3 rounded-xl">{presetQuestion.explanation}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderTextContent = () => {
     const aiAnalysis = analyzedData?.aiAnalysis;
     if (!aiAnalysis || (currentStep !== 3 && !editingSeminar)) return null;
@@ -1116,6 +1255,21 @@ export default function SeminarManagement({ user }: SeminarManagementProps) {
     const isWorkbookMode = seminarForm.type === "워크북" || selectedCategory === "workbook" || (seminarForm.tags && String(seminarForm.tags).includes('2'));
     const isVocabularyMode = seminarForm.type === "단어" || selectedCategory === "word";
     const isVariantMode = seminarForm.type === "변형문제" || selectedCategory.includes("variant") || (seminarForm.tags && String(seminarForm.tags).includes('3'));
+
+    // ─── 프리셋 문제 생성 결과가 있으면 바로 렌더링 ────────────────────────────
+    if (aiAnalysis.presetQuestion) {
+      return (
+        <div className="flex flex-col items-center bg-slate-100/50 py-6 min-h-screen no-print">
+          <div className="w-full max-w-[210mm] space-y-6">
+            {renderPresetQuestionResult(
+              aiAnalysis.presetQuestion,
+              aiAnalysis.presetName || "AI 생성 문제",
+              aiAnalysis.presetType || ""
+            )}
+          </div>
+        </div>
+      );
+    }
 
     // 문서 참조 코드 고정 (사용자 요청)
     const refCode = "R-SV-3819960319552259548";
