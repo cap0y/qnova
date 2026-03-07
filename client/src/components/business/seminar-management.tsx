@@ -1366,8 +1366,8 @@ export default function SeminarManagement({ user }: SeminarManagementProps) {
     // ─── 프리셋 문제 생성 결과가 있으면 바로 렌더링 ────────────────────────────
     if (aiAnalysis.presetQuestion) {
       return (
-        <div className="flex flex-col items-center bg-slate-100/50 py-6 min-h-screen no-print">
-          <div className="w-full max-w-[210mm] space-y-6">
+        <div className="flex flex-col items-center bg-slate-100/50 py-2 min-h-screen no-print">
+          <div className="w-full max-w-full space-y-4">
             {renderPresetQuestionResult(
               aiAnalysis.presetQuestion,
               aiAnalysis.presetName || "AI 생성 문제",
@@ -1561,8 +1561,8 @@ export default function SeminarManagement({ user }: SeminarManagementProps) {
       const rightCol = vocabList.slice(midPoint);
 
       return (
-        <div className="flex flex-col items-center bg-slate-100/50 py-6 min-h-screen no-print">
-          <Card className="w-full max-w-[210mm] border-none shadow-2xl bg-white p-[30px] font-sans text-slate-900 min-h-[297mm]" id="analysis-content">
+        <div className="flex flex-col items-center bg-slate-100/50 py-2 min-h-screen no-print">
+          <Card className="w-full max-w-full border-none shadow-2xl bg-white p-[20px] font-sans text-slate-900 min-h-[297mm]" id="analysis-content">
             {/* Vocabulary Header */}
             <div className="flex justify-between items-center border-b-2 border-slate-200 pb-4 mb-8">
               <div>
@@ -1616,7 +1616,7 @@ export default function SeminarManagement({ user }: SeminarManagementProps) {
           </Card>
 
           {/* Synonyms / Antonyms Page (Separate Card) */}
-          <Card className="w-full max-w-[210mm] border-none shadow-2xl bg-white p-[30px] font-sans text-slate-900 min-h-[297mm] mt-8" id="analysis-content-2">
+          <Card className="w-full max-w-full border-none shadow-2xl bg-white p-[20px] font-sans text-slate-900 min-h-[297mm] mt-4" id="analysis-content-2">
              <div className="flex justify-between items-center border-b-2 border-slate-200 pb-4 mb-8">
               <div>
                 <h2 className="text-2xl font-black tracking-tight text-slate-900">동/반의어</h2>
@@ -1669,8 +1669,8 @@ export default function SeminarManagement({ user }: SeminarManagementProps) {
     if (isVariantMode) {
       const questions = aiAnalysis.questions || [];
       return (
-        <div className="flex flex-col items-center bg-slate-100/50 py-6 min-h-screen no-print">
-          <Card className="w-full max-w-[210mm] border-none shadow-2xl bg-white p-[30px] font-sans text-slate-900 min-h-[297mm]" id="analysis-content">
+        <div className="flex flex-col items-center bg-slate-100/50 py-2 min-h-screen no-print">
+          <Card className="w-full max-w-full border-none shadow-2xl bg-white p-[20px] font-sans text-slate-900 min-h-[297mm]" id="analysis-content">
             {/* Variant Header */}
             <div className="flex justify-between items-center border-b-2 border-slate-900 pb-2 mb-8">
               <div>
@@ -1716,7 +1716,7 @@ export default function SeminarManagement({ user }: SeminarManagementProps) {
           </Card>
           
           {/* Answers Page */}
-          <Card className="w-full max-w-[210mm] border-none shadow-2xl bg-white p-[30px] font-sans text-slate-900 min-h-[297mm] mt-8" id="analysis-content-answers">
+          <Card className="w-full max-w-full border-none shadow-2xl bg-white p-[20px] font-sans text-slate-900 min-h-[297mm] mt-4" id="analysis-content-answers">
              <div className="flex justify-between items-center border-b-2 border-slate-900 pb-2 mb-8">
               <div>
                 <h2 className="text-xl font-black tracking-tight text-slate-900">정답 및 해설</h2>
@@ -1745,8 +1745,8 @@ export default function SeminarManagement({ user }: SeminarManagementProps) {
     }
 
     return (
-      <div className="flex flex-col items-center bg-slate-100/50 py-6 min-h-screen no-print">
-        <Card className="w-full max-w-[210mm] border-none shadow-2xl bg-white p-[20px] font-sans text-slate-900" id="analysis-content">
+      <div className="flex flex-col items-center bg-slate-100/50 py-2 min-h-screen no-print">
+        <Card className="w-full max-w-full border-none shadow-2xl bg-white p-[20px] font-sans text-slate-900" id="analysis-content">
           <div className="flex justify-between items-end border-b-2 border-slate-900 pb-3 mb-6">
             <div>
               <h2 className="text-xl font-black tracking-tight">{user?.username || "선생님"}님의 본문 분석</h2>
@@ -2131,7 +2131,7 @@ export default function SeminarManagement({ user }: SeminarManagementProps) {
           {currentStep === 1 ? (
             renderArchiveGridView()
           ) : ( 
-            <div className="p-8 space-y-6">{renderTocAndDetails()}{renderTextContent()}</div> 
+            <div className="p-2 space-y-4">{renderTocAndDetails()}{renderTextContent()}</div> 
           )}
         </div>
         {renderPresetPanel()}
