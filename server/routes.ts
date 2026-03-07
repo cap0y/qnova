@@ -798,7 +798,7 @@ ${extractedText || "(파일에서 추출된 텍스트를 분석합니다)"}`;
       try {
         if (req.isAuthenticated()) {
           // Cloudinary에 업로드 (원본 보관용) - URL만 획득하고 DB 저장은 나중에 (사용자가 저장 버튼 누를 때)
-          const uploadResult = await uploadToCloudinary(req.file.buffer, {
+          const uploadResult = await uploadToCloudinary(mainFile.buffer, {
             folder: "training-platform/source-materials",
             resourceType: "raw",
           });
