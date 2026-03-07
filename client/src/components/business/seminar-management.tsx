@@ -80,6 +80,7 @@ export default function SeminarManagement({ user }: SeminarManagementProps) {
 
   // Preset State for AI Problem Generation
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
+  const [questionCount, setQuestionCount] = useState<number>(10);
 
   // RAG & Custom Prompt State
   const [ragFile, setRagFile] = useState<File | null>(null);
@@ -307,6 +308,7 @@ export default function SeminarManagement({ user }: SeminarManagementProps) {
       formData.append("level", selectedLevel);
       if (selectedPreset) {
         formData.append("presetType", selectedPreset);
+        formData.append("questionCount", String(questionCount));
       }
       // RAG 참고 파일 첨부
       if (ragFile) {
@@ -1503,14 +1505,137 @@ export default function SeminarManagement({ user }: SeminarManagementProps) {
 
     // ─── 프리셋 문제 생성 결과가 있으면 바로 렌더링 ────────────────────────────
     if (aiAnalysis.presetQuestion) {
+      // 배열 / 단일 객체 모두 배열로 정규화
+      const questions: any[] = Array.isArray(aiAnalysis.presetQuestion)
+        ? aiAnalysis.presetQuestion
+        : [aiAnalysis.presetQuestion];
+      const pName = aiAnalysis.presetName || "AI 생성 문제";
+      const pType = aiAnalysis.presetType || "";
+
       return (
-        <div className="flex flex-col items-center bg-slate-100/50 py-2 min-h-screen no-print">
-          <div className="w-full max-w-full space-y-4">
-            {renderPresetQuestionResult(
-              aiAnalysis.presetQuestion,
-              aiAnalysis.presetName || "AI 생성 문제",
-              aiAnalysis.presetType || ""
-            )}
+        <div className="flex flex-col bg-slate-100/50 py-2 min-h-screen no-print">
+          {/* 상단 헤더 */}
+          <div className="px-4 pb-3 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 bg-purple-100 rounded-lg">
+                <BookOpenCheck className="w-4 h-4 text-purple-600" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-purple-400 uppercase tracking-wide">AI 생성 문제</p>
+                <h4 className="text-sm font-bold text-gray-800">{pName} · {questions.length}문항</h4>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(JSON.stringify(questions, null, 2));
+                toast({ title: "복사 완료", description: "전체 문제 JSON이 복사되었습니다." });
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-500 hover:text-purple-600 border border-gray-200 hover:border-purple-300 rounded-lg transition-colors"
+            >
+              <Copy className="w-3 h-3" /> 전체 복사
+            </button>
+          </div>
+          {/* 문제 목록 */}
+          <div className="flex-1 px-4 space-y-3">
+            {questions.map((q: any, idx: number) => (
+              <div key={idx} className="bg-white rounded-2xl border border-purple-100 shadow-sm overflow-hidden">
+                {/* 문제 번호 */}
+                <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 bg-[#6E49E9] text-white text-xs font-bold rounded-full flex items-center justify-center shrink-0">
+                      {idx + 1}
+                    </span>
+                    <span className="text-xs font-bold text-gray-700">{q.question || `${idx + 1}번 문제`}</span>
+                  </div>
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(JSON.stringify(q, null, 2)); toast({ title: "복사 완료" }); }}
+                    className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <Copy className="w-3 h-3" />
+                  </button>
+                </div>
+                <div className="p-5 space-y-4">
+                  {/* 지문 */}
+                  {q.passage && (
+                    <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 text-sm leading-loose text-slate-700 font-serif whitespace-pre-wrap">
+                      {q.passage}
+                    </div>
+                  )}
+                  {/* 주어진 글 (순서 배열) */}
+                  {q.given && (
+                    <div className="bg-blue-50 rounded-xl p-4 border border-blue-100 text-sm leading-relaxed text-slate-800 font-serif">
+                      <p className="text-[10px] font-bold text-blue-500 mb-2">주어진 글</p>
+                      {q.given}
+                    </div>
+                  )}
+                  {/* 단락 A/B/C (순서 배열) */}
+                  {q.paragraphs && (
+                    <div className="grid grid-cols-3 gap-3">
+                      {Object.entries(q.paragraphs).map(([key, val]: [string, any]) => (
+                        <div key={key} className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                          <p className="text-[10px] font-bold text-slate-400 mb-1">({key})</p>
+                          <p className="text-xs leading-relaxed text-slate-700">{val}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* 요약문 (요약문 완성) */}
+                  {q.summary && (
+                    <div className="bg-amber-50 rounded-xl p-4 border border-amber-100">
+                      <p className="text-[10px] font-bold text-amber-600 mb-2">요약문</p>
+                      <p className="text-sm font-bold text-slate-800">{q.summary}</p>
+                    </div>
+                  )}
+                  {/* 선택지 */}
+                  {q.options && q.options.length > 0 && (
+                    <div className="space-y-1.5">
+                      {q.options.map((opt: string, oi: number) => (
+                        <div key={oi} className="flex items-start gap-2.5 px-3 py-2 rounded-lg bg-white border border-slate-100 hover:border-blue-200 transition-colors">
+                          <span className="text-sm font-bold text-slate-400 shrink-0">{["①","②","③","④","⑤"][oi]}</span>
+                          <span className="text-sm text-slate-700 leading-tight">{opt}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* 요약 선택지 A/B */}
+                  {(q.optionsA || q.optionsB) && (
+                    <div className="grid grid-cols-2 gap-4">
+                      {q.optionsA && <div className="space-y-1">
+                        <p className="text-[10px] font-bold text-slate-400">(A)</p>
+                        {q.optionsA.map((opt: string, oi: number) => (
+                          <div key={oi} className="flex gap-2 px-2 py-1.5 rounded border border-slate-100 text-xs text-slate-700">
+                            <span className="font-bold text-slate-400">{["①","②","③"][oi]}</span> {opt}
+                          </div>
+                        ))}
+                      </div>}
+                      {q.optionsB && <div className="space-y-1">
+                        <p className="text-[10px] font-bold text-slate-400">(B)</p>
+                        {q.optionsB.map((opt: string, oi: number) => (
+                          <div key={oi} className="flex gap-2 px-2 py-1.5 rounded border border-slate-100 text-xs text-slate-700">
+                            <span className="font-bold text-slate-400">{["①","②","③"][oi]}</span> {opt}
+                          </div>
+                        ))}
+                      </div>}
+                    </div>
+                  )}
+                  {/* 정답 & 해설 */}
+                  <div className="border-t border-slate-100 pt-3 space-y-2">
+                    {q.answer !== undefined && (
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-bold text-slate-400 w-8 shrink-0">정답</span>
+                        <span className="px-3 py-0.5 bg-blue-600 text-white text-sm font-bold rounded-lg">{q.answer}</span>
+                      </div>
+                    )}
+                    {q.explanation && (
+                      <div className="flex gap-3">
+                        <span className="text-xs font-bold text-slate-400 w-8 shrink-0">해설</span>
+                        <p className="text-xs text-slate-600 leading-relaxed flex-1 bg-slate-50 p-3 rounded-xl">{q.explanation}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       );
@@ -2306,6 +2431,30 @@ export default function SeminarManagement({ user }: SeminarManagementProps) {
                 );
               })}
             </div>
+            {/* 문제 수 선택 (프리셋 선택 시에만 표시) */}
+            {selectedPreset && (
+              <>
+                <div className="w-px h-4 bg-gray-200 shrink-0" />
+                <div className="flex items-center gap-1 shrink-0">
+                  <span className="text-[11px] font-bold text-gray-500 whitespace-nowrap">문제 수</span>
+                  <div className="flex items-center gap-1">
+                    {[10, 20, 30].map((n) => (
+                      <button
+                        key={n}
+                        onClick={() => setQuestionCount(n)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-all ${
+                          questionCount === n
+                            ? "bg-orange-500 text-white shadow-sm"
+                            : "bg-gray-50 text-gray-500 hover:bg-orange-50 hover:text-orange-500"
+                        }`}
+                      >
+                        {n}개
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
           {/* 메인 콘텐츠 */}
           <div className="flex-1 overflow-y-auto">

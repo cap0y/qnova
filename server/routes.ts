@@ -78,7 +78,8 @@ export function registerRoutes(app: Express): void {
 
     try {
       let extractedText = "";
-      const { category, level, presetType, customPrompt } = req.body; // 카테고리, 레벨, 프리셋, 커스텀 프롬프트
+      const { category, level, presetType, customPrompt, questionCount } = req.body;
+      const qCount = presetType ? Math.min(Math.max(parseInt(questionCount) || 10, 1), 50) : 10;
       
       // 파일명이 깨지는 문제 해결 (Latin1 -> UTF-8 변환)
       const originalName = Buffer.from(mainFile.originalname, 'latin1').toString('utf8');
@@ -263,11 +264,16 @@ export function registerRoutes(app: Express): void {
             }
 
             // ─── 프리셋 선택 시: System Instruction이 역할/제약/형식을 담당 ──────────────
-            // 사용자 프롬프트에는 지문만 넘기고 JSON 응답을 요구
+            // 사용자 프롬프트에는 지문만 넘기고 JSON 배열 응답을 요구
             if (presetTemplate) {
-              prompt = `아래 영어 지문을 분석하여 System Instruction에 정의된 문제를 생성해 주세요.${levelInstruction}
+              prompt = `아래 영어 지문을 분석하여 System Instruction에 정의된 문제 유형으로 정확히 **${qCount}개**의 문제를 생성해 주세요.${levelInstruction}
 
-반드시 유효한 JSON 형식으로만 응답하세요. 설명이나 마크다운 코드블록(예: \`\`\`json)은 포함하지 마세요.
+**출력 규칙 (반드시 준수)**:
+- 반드시 유효한 JSON **배열** 형식으로만 응답하세요.
+- 배열에 정확히 ${qCount}개의 문제 객체를 포함해야 합니다.
+- 각 문제 객체는 System Instruction의 출력 형식을 따르세요.
+- 설명이나 마크다운 코드블록(예: \`\`\`json)은 포함하지 마세요.
+- 응답 형식 예시: [ { ...문제1... }, { ...문제2... }, ... ]
 
 [지문]
 ${extractedText || "(파일에서 추출된 텍스트를 분석합니다)"}`;
