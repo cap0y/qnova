@@ -32,7 +32,9 @@ import {
   ListChecks,
   FileText,
   Settings,
-  MoreHorizontal
+  MoreHorizontal,
+  Sparkles,
+  Check,
 } from "lucide-react";
 import CourseManagement from "@/components/business/course-management";
 import SeminarManagement from "@/components/business/seminar-management";
@@ -49,6 +51,13 @@ export default function BusinessDashboardPage() {
   const initialTab = urlParams.get("tab") || "dashboard";
 
   const [activeTab, setActiveTab] = useState(initialTab);
+
+  // 문제 유형 프리셋 상태 (헤더에 배치)
+  const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
+  const [questionCount, setQuestionCount] = useState<number>(10);
+  const { data: promptTemplates, isLoading: promptTemplatesLoading } = useQuery<
+    Array<{ id: number; type: string; name: string }>
+  >({ queryKey: ["/api/prompt-templates"], enabled: activeTab === "text-analysis" });
 
   // 내 강의 목록 조회
   const {
@@ -291,14 +300,73 @@ export default function BusinessDashboardPage() {
               {/* Text Analysis Tab */}
               <TabsContent value="text-analysis" className="mt-0 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <Card className="border-none shadow-md overflow-hidden">
-                   <div className="bg-gradient-to-r from-blue-50 to-white px-6 py-4 border-b">
-                      <div className="flex items-center gap-2">
-                        <div className="w-1 h-4 bg-blue-500 rounded-full"></div>
-                        <h3 className="font-bold text-gray-800">본문 분석 및 자료 생성</h3>
+                   <div className="bg-gradient-to-r from-blue-50 to-white px-4 py-2.5 border-b">
+                      <div className="flex items-center justify-between gap-3 flex-wrap">
+                        {/* 좌측: 제목 */}
+                        <div className="flex items-center gap-2 shrink-0">
+                          <div className="w-1 h-4 bg-blue-500 rounded-full"></div>
+                          <h3 className="font-bold text-gray-800 whitespace-nowrap">본문 분석 및 자료 생성</h3>
+                        </div>
+                        {/* 우측: 문제 유형 프리셋 선택 */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Sparkles className="w-3.5 h-3.5 text-purple-500" />
+                            <span className="text-xs font-bold text-gray-500 whitespace-nowrap">문제 유형</span>
+                          </div>
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <button
+                              onClick={() => setSelectedPreset(null)}
+                              className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
+                                selectedPreset === null
+                                  ? "bg-gray-200 text-gray-700"
+                                  : "bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600"
+                              }`}
+                            >
+                              선택 안함
+                            </button>
+                            {promptTemplatesLoading
+                              ? [1,2,3].map(i => <div key={i} className="h-6 w-16 bg-gray-100 rounded-full animate-pulse" />)
+                              : promptTemplates?.map((t) => {
+                                  const isSel = selectedPreset === t.type;
+                                  return (
+                                    <button
+                                      key={t.id}
+                                      onClick={() => setSelectedPreset(isSel ? null : t.type)}
+                                      className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-all flex items-center gap-1 ${
+                                        isSel ? "bg-[#6E49E9] text-white shadow-sm" : "bg-gray-100 text-gray-600 hover:bg-purple-50 hover:text-[#6E49E9]"
+                                      }`}
+                                    >
+                                      {isSel && <Check className="w-3 h-3" />}
+                                      {t.name}
+                                    </button>
+                                  );
+                                })
+                            }
+                            {selectedPreset && (
+                              <>
+                                <div className="w-px h-4 bg-gray-200" />
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[11px] font-bold text-gray-400 whitespace-nowrap">문제 수</span>
+                                  {[10, 20, 30].map(n => (
+                                    <button
+                                      key={n}
+                                      onClick={() => setQuestionCount(n)}
+                                      className={`px-2 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-all ${
+                                        questionCount === n ? "bg-orange-500 text-white shadow-sm" : "bg-gray-100 text-gray-500 hover:bg-orange-50 hover:text-orange-500"
+                                      }`}
+                                    >
+                                      {n}개
+                                    </button>
+                                  ))}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
                       </div>
                    </div>
                    <CardContent className="p-0">
-                      <SeminarManagement user={user} />
+                      <SeminarManagement user={user} selectedPreset={selectedPreset} questionCount={questionCount} />
                    </CardContent>
                 </Card>
               </TabsContent>
