@@ -134,16 +134,25 @@ export function registerRoutes(app: Express): void {
           let parts: any[] = [];
           
           // PDF의 경우 파일을 직접 Gemini에 전달 (OCR 및 멀티모달 분석)
+          // Gemini inlineData 한도: ~20MB (base64 기준) ≈ 원본 15MB
           if (fileType === ".pdf") {
-            const base64Data = mainFile.buffer.toString("base64");
-            parts = [
-              {
-                inlineData: {
-                  data: base64Data,
-                  mimeType: "application/pdf",
-                },
-              },
-            ];
+            const GEMINI_INLINE_LIMIT = 15 * 1024 * 1024; // 15MB
+            if (mainFile.buffer.length <= GEMINI_INLINE_LIMIT) {
+              const base64Data = mainFile.buffer.toString("base64");
+              parts = [{ inlineData: { data: base64Data, mimeType: "application/pdf" } }];
+            } else {
+              // 15MB 초과 PDF → pdf-parse로 텍스트 추출 후 텍스트로 전달
+              console.log(`[PDF] 파일 크기 ${(mainFile.buffer.length/1024/1024).toFixed(1)}MB > 15MB, 텍스트 추출 모드로 전환`);
+              try {
+                const pdfParse = require("pdf-parse");
+                const pdfData = await pdfParse(mainFile.buffer);
+                extractedText = pdfData.text;
+                parts = [{ text: `다음은 PDF에서 추출한 텍스트입니다:\n\n${extractedText.substring(0, 50000)}` }];
+              } catch (pdfErr) {
+                console.error("[PDF] 텍스트 추출 실패:", pdfErr);
+                parts = [{ text: "PDF 텍스트 추출에 실패했습니다. 파일을 확인해 주세요." }];
+              }
+            }
           } 
           // Word 파일은 텍스트 추출 후 전달
           else if (fileType === ".docx") {
