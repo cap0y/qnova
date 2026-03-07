@@ -2127,14 +2127,57 @@ export default function SeminarManagement({ user }: SeminarManagementProps) {
       ` }} />
       <div className="flex bg-white rounded-2xl border shadow-sm overflow-hidden h-[calc(100vh-180px)] animate-in fade-in slide-in-from-bottom-4 duration-500">
         {renderCategorySidebar()}
-        <div className="flex-1 overflow-y-auto bg-[#F8FAFC]">
-          {currentStep === 1 ? (
-            renderArchiveGridView()
-          ) : ( 
-            <div className="p-2 space-y-4">{renderTocAndDetails()}{renderTextContent()}</div> 
-          )}
+        <div className="flex-1 flex flex-col overflow-hidden bg-[#F8FAFC]">
+          {/* 문제 유형 프리셋 가로 선택바 */}
+          <div className="shrink-0 px-4 py-2 bg-white border-b flex items-center gap-2 overflow-x-auto">
+            <div className="flex items-center gap-1 shrink-0">
+              <Sparkles className="w-3.5 h-3.5 text-purple-500" />
+              <span className="text-xs font-bold text-gray-600 whitespace-nowrap">문제 유형</span>
+            </div>
+            <div className="w-px h-4 bg-gray-200 shrink-0" />
+            <div className="flex items-center gap-1.5 flex-nowrap">
+              <button
+                onClick={() => setSelectedPreset(null)}
+                className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
+                  selectedPreset === null
+                    ? "bg-gray-200 text-gray-700"
+                    : "bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                }`}
+              >
+                선택 안함
+              </button>
+              {promptTemplatesLoading ? (
+                [1,2,3,4].map(i => (
+                  <div key={i} className="h-6 w-20 bg-gray-100 rounded-full animate-pulse" />
+                ))
+              ) : promptTemplates?.map((template) => {
+                const isSelected = selectedPreset === template.type;
+                return (
+                  <button
+                    key={template.id}
+                    onClick={() => setSelectedPreset(isSelected ? null : template.type)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-all flex items-center gap-1 ${
+                      isSelected
+                        ? "bg-[#6E49E9] text-white shadow-sm"
+                        : "bg-gray-50 text-gray-600 hover:bg-purple-50 hover:text-[#6E49E9]"
+                    }`}
+                  >
+                    {isSelected && <Check className="w-3 h-3" />}
+                    {template.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          {/* 메인 콘텐츠 */}
+          <div className="flex-1 overflow-y-auto">
+            {currentStep === 1 ? (
+              renderArchiveGridView()
+            ) : (
+              <div className="p-2 space-y-4">{renderTocAndDetails()}{renderTextContent()}</div>
+            )}
+          </div>
         </div>
-        {renderPresetPanel()}
       </div>
       <Dialog open={showSampleImages} onOpenChange={setShowSampleImages}>
         <DialogContent className="max-w-3xl">
