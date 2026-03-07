@@ -129,7 +129,7 @@ export default function BusinessDashboardPage() {
       <Header />
 
 
-      <div className="flex-1 container mx-auto px-4 py-2 max-w-5xl">
+      <div className="flex-1 w-full py-2">
         
         {/* Main Content Area */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden min-h-[800px] flex flex-col">
