@@ -645,31 +645,34 @@ ${extractedText || "(파일에서 추출된 텍스트를 분석합니다)"}`;
             const response = await result.response;
             const text = response.text();
             
-            // Extract JSON from markdown code block if present
-            const jsonMatch = text.match(/```json\s*(\{[\s\S]*\})\s*```/) || text.match(/\{[\s\S]*\}/);
+            // Extract JSON from markdown code block if present (object or array)
+            const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/)
+              || text.match(/(\[[\s\S]*\])/s)
+              || text.match(/(\{[\s\S]*\})/s);
+
+            // 공통 JSON 이스케이프 정제 함수
+            const sanitizeJson = (raw: string): string => {
+              // 1. 잘못된 \u 이스케이프 수정 (4자리 hex 아닌 경우)
+              let s = raw.replace(/\\u(?![0-9a-fA-F]{4})/g, "\\\\u");
+              // 2. JSON에서 허용되지 않는 단일 백슬래시 이스케이프 수정
+              //    유효: \" \\ \/ \b \f \n \r \t \uXXXX
+              s = s.replace(/(^|[^\\])\\([^"\\/bfnrtu])/g, "$1\\\\$2");
+              // 3. 제어문자 (탭·줄바꿈 등) 문자열 내부에서 이스케이프
+              s = s.replace(/[\u0000-\u001F\u007F]/g, (ch) => {
+                const hex = ch.charCodeAt(0).toString(16).padStart(4, "0");
+                return `\\u${hex}`;
+              });
+              return s;
+            };
             
             if (jsonMatch) {
                try {
-                 // Try to remove newlines inside strings to avoid parse errors (risky but often needed for messy LLM output)
-                 // let cleanJson = (jsonMatch[1] || jsonMatch[0]).replace(/\n/g, "\\n"); // This breaks pretty printing, use with caution.
-                 // Better: Use the raw match first.
-                 
-                 aiAnalysis = JSON.parse(jsonMatch[1] || jsonMatch[0]);
+                 const rawJson = sanitizeJson(jsonMatch[1] || jsonMatch[0]);
+                 aiAnalysis = JSON.parse(rawJson);
                } catch (e: any) {
-                 console.log("JSON parse failed, trying to repair: " + e.message); // Changed to log, not error
+                 console.log("JSON parse failed, trying to repair: " + e.message);
                  try {
-                  let fixedJson = jsonMatch[1] || jsonMatch[0];
-                  
-                  // 0. Pre-fix common escape issues (The "Bad escaped character" fix)
-                  // 0.1 Fix invalid unicode escapes (e.g. \u not followed by 4 hex chars)
-                  fixedJson = fixedJson.replace(/\\u(?![0-9a-fA-F]{4})/g, "\\\\u");
-
-                  // 0.2 Replace single backslashes that are NOT valid escapes with double backslashes
-                  // Valid escapes in JSON: \" \\ \/ \b \f \n \r \t \uXXXX
-                  // We remove b, f, t from the list because in LaTeX context, \beta, \frac, \times are common.
-                  // We want to turn \beta -> \\beta, \frac -> \\frac, \times -> \\times
-                  // We also use a capturing group (^|[^\\]) to avoid double-escaping already valid backslashes (\\)
-                  fixedJson = fixedJson.replace(/(^|[^\\])\\([^"\\\/nru])/g, "$1\\\\$2");
+                  let fixedJson = sanitizeJson(jsonMatch[1] || jsonMatch[0]);
 
                    // 1. Remove trailing commas before closing brackets/braces
                    fixedJson = fixedJson.replace(/,\s*([\]}])/g, '$1');
@@ -800,43 +803,34 @@ ${extractedText || "(파일에서 추출된 텍스트를 분석합니다)"}`;
         }
       }
 
-      // AI 분석이 성공하거나 텍스트가 추출된 경우 source_materials 테이블에도 저장하여 나중에 불러올 수 있게 함
-      try {
-        if (req.isAuthenticated()) {
-          // Cloudinary에 업로드 (원본 보관용) - URL만 획득하고 DB 저장은 나중에 (사용자가 저장 버튼 누를 때)
+      // Cloudinary 업로드 (10MB 이하 파일만 - 무료 플랜 제한)
+      const CLOUDINARY_MAX_BYTES = 10 * 1024 * 1024; // 10MB
+      let fileUrl: string | undefined;
+
+      if (mainFile.buffer.length <= CLOUDINARY_MAX_BYTES) {
+        try {
           const uploadResult = await uploadToCloudinary(mainFile.buffer, {
             folder: "training-platform/source-materials",
             resourceType: "raw",
           });
-          
-          // 분석 시점에는 source_materials에 저장하지 않음 (사용자 요청 반영)
-          
-          res.json({
-            message: "File analyzed successfully",
-            filename: originalName,
-            textLength: extractedText.length || (aiAnalysis ? 1000 : 0),
-            toc: mockToc,
-            rawText: extractedText.substring(0, 10000), 
-            aiAnalysis: aiAnalysis,
-            fileType: fileType,
-            fileUrl: uploadResult.url // URL 반환하여 클라이언트가 저장 시점에 사용할 수 있게 함
-          });
+          fileUrl = uploadResult.url;
+        } catch (uploadErr) {
+          console.error("Cloudinary upload failed (non-fatal):", uploadErr);
         }
-      } catch (saveErr) {
-        console.error("Failed to upload/save source material:", saveErr);
-        // 오류가 나도 분석 결과는 반환 (URL 없이)
-        if (!res.headersSent) {
-          res.json({
-            message: "File analyzed successfully (Upload failed)",
-            filename: originalName,
-            textLength: extractedText.length || (aiAnalysis ? 1000 : 0),
-            toc: mockToc,
-            rawText: extractedText.substring(0, 10000), 
-            aiAnalysis: aiAnalysis,
-            fileType: fileType
-          });
-        }
+      } else {
+        console.log(`[Cloudinary] 파일 크기 초과(${(mainFile.buffer.length / 1024 / 1024).toFixed(1)}MB > 10MB), 업로드 건너뜀`);
       }
+
+      res.json({
+        message: "File analyzed successfully",
+        filename: originalName,
+        textLength: extractedText.length || (aiAnalysis ? 1000 : 0),
+        toc: mockToc,
+        rawText: extractedText.substring(0, 10000),
+        aiAnalysis: aiAnalysis,
+        fileType: fileType,
+        ...(fileUrl ? { fileUrl } : {}),
+      });
     } catch (error) {
       console.error("File analysis error:", error);
       res.status(500).json({ message: "Error analyzing file" });
