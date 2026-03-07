@@ -34,7 +34,7 @@ const require = createRequire(import.meta.url);
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
+    fileSize: 50 * 1024 * 1024, // 50MB limit (PDF 교재 등 대용량 지원)
   },
   fileFilter: (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|pdf|doc|docx|hwpx|hwp|xls|xlsx|ppt|pptx/;
