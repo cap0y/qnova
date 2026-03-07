@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Plus,
   Trash2,
@@ -44,6 +45,10 @@ import {
   ChevronRight,
   BookOpenCheck,
   Copy,
+  Paperclip,
+  MessageSquarePlus,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
@@ -74,6 +79,11 @@ export default function SeminarManagement({ user }: SeminarManagementProps) {
 
   // Preset State for AI Problem Generation
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
+
+  // RAG & Custom Prompt State
+  const [ragFile, setRagFile] = useState<File | null>(null);
+  const [customPrompt, setCustomPrompt] = useState<string>("");
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
 
   // Category State
   const [selectedCategory, setSelectedCategory] = useState<string>("analysis");
@@ -250,9 +260,17 @@ export default function SeminarManagement({ user }: SeminarManagementProps) {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("category", selectedCategory);
-      formData.append("level", selectedLevel); // Add level to formData
+      formData.append("level", selectedLevel);
       if (selectedPreset) {
-        formData.append("presetType", selectedPreset); // 선택된 문제 유형 프리셋 전달
+        formData.append("presetType", selectedPreset);
+      }
+      // RAG 참고 파일 첨부
+      if (ragFile) {
+        formData.append("ragFile", ragFile);
+      }
+      // 사용자 커스텀 프롬프트
+      if (customPrompt.trim()) {
+        formData.append("customPrompt", customPrompt.trim());
       }
       
       const headers: Record<string, string> = {};
@@ -379,6 +397,9 @@ export default function SeminarManagement({ user }: SeminarManagementProps) {
     setCurrentStep(1);
     setAnalyzedData(null);
     setUploadedFile(null);
+    setRagFile(null);
+    setCustomPrompt("");
+    setShowAdvancedOptions(false);
     setSelectedTocIds([]);
     setSelectedAnalysisTypes([1]);
     setShowUploadArea(false);
@@ -918,10 +939,11 @@ export default function SeminarManagement({ user }: SeminarManagementProps) {
                 </Button>
               </div>
             ) : (
-              <Card className="rounded-2xl border-2 border-[#6E49E9] bg-white shadow-lg min-h-[180px] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
-                <div className="p-2 border-b bg-purple-50/30 flex justify-between items-center">
-                  <span className="text-[10px] font-bold text-[#6E49E9] flex items-center gap-1">
-                    <Upload className="w-3 h-3" /> 업로드
+              <Card className="rounded-2xl border-2 border-[#6E49E9] bg-white shadow-lg flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 col-span-1 md:col-span-2">
+                {/* 카드 헤더 */}
+                <div className="p-2.5 border-b bg-purple-50/30 flex justify-between items-center shrink-0">
+                  <span className="text-[11px] font-bold text-[#6E49E9] flex items-center gap-1.5">
+                    <Upload className="w-3 h-3" /> 새 자료 만들기
                   </span>
                   <div className="flex gap-1">
                     <Button variant="ghost" size="icon" className="h-5 w-5 text-gray-400" onClick={() => setShowApiKeyDialog(true)}>
@@ -932,32 +954,117 @@ export default function SeminarManagement({ user }: SeminarManagementProps) {
                     </Button>
                   </div>
                 </div>
-                <div className="p-3 flex-1 flex flex-col gap-2">
-                  <div className="flex gap-2 mb-1">
-                    <Select value={selectedLevel} onValueChange={setSelectedLevel}>
-                      <SelectTrigger className="h-8 text-xs w-full bg-white border-gray-200">
-                        <SelectValue placeholder="대상 학년 선택" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">전체/무관</SelectItem>
-                        <SelectItem value="middle1">중1</SelectItem>
-                        <SelectItem value="middle2">중2</SelectItem>
-                        <SelectItem value="middle3">중3</SelectItem>
-                        <SelectItem value="high1">고1</SelectItem>
-                        <SelectItem value="high2">고2</SelectItem>
-                        <SelectItem value="high3">고3/수능</SelectItem>
-                      </SelectContent>
-                    </Select>
+
+                <div className="p-4 flex flex-col gap-3">
+                  {/* 상단 2열: 학년 선택 + 메인 파일 */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* 학년 선택 */}
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">대상 학년</label>
+                      <Select value={selectedLevel} onValueChange={setSelectedLevel}>
+                        <SelectTrigger className="h-9 text-xs bg-white border-gray-200">
+                          <SelectValue placeholder="학년 선택" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">전체/무관</SelectItem>
+                          <SelectItem value="middle1">중1</SelectItem>
+                          <SelectItem value="middle2">중2</SelectItem>
+                          <SelectItem value="middle3">중3</SelectItem>
+                          <SelectItem value="high1">고1</SelectItem>
+                          <SelectItem value="high2">고2</SelectItem>
+                          <SelectItem value="high3">고3/수능</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* 메인 파일 업로드 */}
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">분석 파일 *</label>
+                      <div className="relative h-9 border border-dashed border-[#6E49E9]/40 rounded-lg flex items-center justify-center bg-purple-50/20 cursor-pointer hover:bg-purple-50/40 transition-colors overflow-hidden">
+                        <Input type="file" onChange={handleFileSelect} className="absolute inset-0 opacity-0 cursor-pointer z-10 h-full" accept=".pdf,.docx,.hwpx,.hwp" />
+                        <div className="flex items-center gap-1.5 px-2 w-full">
+                          <FileText className={`w-3.5 h-3.5 shrink-0 ${uploadedFile ? 'text-purple-500' : 'text-gray-300'}`} />
+                          <span className="text-[10px] text-gray-500 truncate flex-1">
+                            {uploadedFile ? uploadedFile.name : "PDF / DOCX / HWPX"}
+                          </span>
+                          {uploadedFile && (
+                            <button onClick={(e) => { e.preventDefault(); setUploadedFile(null); }} className="shrink-0 text-gray-300 hover:text-red-400">
+                              <X className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex-1 border-2 border-dashed border-gray-100 rounded-xl flex flex-col items-center justify-center bg-gray-50/50 relative">
-                    <Input type="file" onChange={handleFileSelect} className="absolute inset-0 opacity-0 cursor-pointer z-10" />
-                    <FileText className={`w-6 h-6 ${uploadedFile ? 'text-blue-500' : 'text-gray-300'} mb-1`} />
-                    <span className="text-[10px] text-gray-500 px-2 text-center truncate w-full">
-                      {uploadedFile ? uploadedFile.name : "파일 선택"}
-                    </span>
+
+                  {/* 커스텀 프롬프트 입력 */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide flex items-center gap-1">
+                      <MessageSquarePlus className="w-3 h-3" /> 추가 지시사항 (선택)
+                    </label>
+                    <Textarea
+                      placeholder={`예) "3번 문제는 빈칸 추론으로 만들어줘"\n"단어 난이도는 고등 수준으로 맞춰줘"\n"지문의 2~3단락에 집중해서 문제를 출제해"`}
+                      value={customPrompt}
+                      onChange={(e) => setCustomPrompt(e.target.value)}
+                      className="text-xs resize-none bg-white border-gray-200 focus:border-[#6E49E9] min-h-[72px] placeholder:text-gray-300 leading-relaxed"
+                      rows={3}
+                    />
                   </div>
-                  <Button onClick={startAnalysis} disabled={!uploadedFile || isAnalyzing} className="w-full h-8 bg-[#6E49E9] text-white font-bold rounded-xl text-xs">
-                    {isAnalyzing ? <Loader2 className="animate-spin h-3 w-3" /> : "시작"}
+
+                  {/* 고급 설정 토글 */}
+                  <button
+                    onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
+                    className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 hover:text-purple-600 transition-colors w-fit"
+                  >
+                    {showAdvancedOptions ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    RAG 참고 자료 첨부
+                    {ragFile && <span className="bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded text-[9px] font-bold">1개 첨부됨</span>}
+                  </button>
+
+                  {/* RAG 파일 첨부 (고급 설정) */}
+                  {showAdvancedOptions && (
+                    <div className="flex flex-col gap-1.5 animate-in slide-in-from-top-2 duration-200">
+                      <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-[10px] text-amber-700 leading-relaxed">
+                        <strong className="flex items-center gap-1 mb-1"><Paperclip className="w-3 h-3" /> RAG (참고 자료) 란?</strong>
+                        AI가 문제를 출제할 때 함께 참고할 추가 문서입니다. 예시 문제, 교과서 해설, 정답지 등을 첨부하면 해당 자료를 기반으로 더 정확한 문제가 생성됩니다.
+                      </div>
+                      <div className="relative h-10 border border-dashed border-amber-300/60 rounded-lg flex items-center justify-center bg-amber-50/30 cursor-pointer hover:bg-amber-50/60 transition-colors overflow-hidden">
+                        <Input
+                          type="file"
+                          onChange={(e) => { if (e.target.files?.[0]) setRagFile(e.target.files[0]); }}
+                          className="absolute inset-0 opacity-0 cursor-pointer z-10 h-full"
+                          accept=".pdf,.docx,.hwpx,.hwp,.txt"
+                        />
+                        <div className="flex items-center gap-1.5 px-3 w-full">
+                          <Paperclip className={`w-3.5 h-3.5 shrink-0 ${ragFile ? 'text-amber-500' : 'text-gray-300'}`} />
+                          <span className="text-[10px] text-gray-500 truncate flex-1">
+                            {ragFile ? ragFile.name : "참고 자료 첨부 (PDF · DOCX · TXT)"}
+                          </span>
+                          {ragFile && (
+                            <button onClick={(e) => { e.preventDefault(); setRagFile(null); }} className="shrink-0 text-gray-300 hover:text-red-400">
+                              <X className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 시작 버튼 */}
+                  <Button
+                    onClick={startAnalysis}
+                    disabled={!uploadedFile || isAnalyzing}
+                    className="w-full h-9 bg-[#6E49E9] hover:bg-[#5A3CC7] text-white font-bold rounded-xl text-xs mt-1 shadow-md"
+                  >
+                    {isAnalyzing ? (
+                      <span className="flex items-center gap-2"><Loader2 className="animate-spin h-3.5 w-3.5" /> AI 분석 중...</span>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        분석 시작
+                        {selectedPreset && <span className="bg-white/20 px-1.5 py-0.5 rounded text-[9px]">{promptTemplates?.find(t => t.type === selectedPreset)?.name}</span>}
+                      </span>
+                    )}
                   </Button>
                 </div>
               </Card>

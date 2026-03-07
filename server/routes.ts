@@ -58,21 +58,30 @@ export function registerRoutes(app: Express): void {
   app.use("/uploads", express.static("uploads"));
 
   // File analysis endpoint for problem creation
-  app.post("/api/business/analyze-file", upload.single("file"), async (req, res) => {
+  app.post("/api/business/analyze-file", upload.fields([
+    { name: "file", maxCount: 1 },
+    { name: "ragFile", maxCount: 1 }
+  ]), async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Authentication required" });
     }
 
-    if (!req.file) {
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+    const mainFile = files?.["file"]?.[0];
+
+    if (!mainFile) {
       return res.status(400).json({ message: "No file uploaded" });
     }
 
+    // RAG 참고 파일
+    const ragFileData = files?.["ragFile"]?.[0];
+
     try {
       let extractedText = "";
-      const { category, level, presetType } = req.body; // 카테고리, 레벨, 프리셋 유형 수신
+      const { category, level, presetType, customPrompt } = req.body; // 카테고리, 레벨, 프리셋, 커스텀 프롬프트
       
       // 파일명이 깨지는 문제 해결 (Latin1 -> UTF-8 변환)
-      const originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+      const originalName = Buffer.from(mainFile.originalname, 'latin1').toString('utf8');
       const fileType = path.extname(originalName).toLowerCase();
       
       // ─── 문제 유형 프리셋 로드 (관리자 설정 기반) ─────────────────────────────
@@ -125,7 +134,7 @@ export function registerRoutes(app: Express): void {
           
           // PDF의 경우 파일을 직접 Gemini에 전달 (OCR 및 멀티모달 분석)
           if (fileType === ".pdf") {
-            const base64Data = req.file.buffer.toString("base64");
+            const base64Data = mainFile.buffer.toString("base64");
             parts = [
               {
                 inlineData: {
@@ -138,7 +147,7 @@ export function registerRoutes(app: Express): void {
           // Word 파일은 텍스트 추출 후 전달
           else if (fileType === ".docx") {
             try {
-              const result = await mammoth.extractRawText({ buffer: req.file.buffer });
+              const result = await mammoth.extractRawText({ buffer: mainFile.buffer });
               extractedText = result.value;
               parts = [{ text: extractedText }];
             } catch (err) {
@@ -149,8 +158,8 @@ export function registerRoutes(app: Express): void {
           else if (fileType === ".hwpx" || fileType === ".hwp") {
             try {
               // ZIP 매직 넘버(PK) 확인
-              if (req.file.buffer.slice(0, 2).toString() === "PK") {
-                const zip = await JSZip.loadAsync(req.file.buffer);
+              if (mainFile.buffer.slice(0, 2).toString() === "PK") {
+                const zip = await JSZip.loadAsync(mainFile.buffer);
                 let hwpxText = "";
                 
                 // Contents 폴더 내의 section0.xml, section1.xml ... 들을 찾아 텍스트 추출
@@ -184,7 +193,7 @@ export function registerRoutes(app: Express): void {
                 // ZIP이 아닌 경우(이전 HWP 바이너리 등)는 텍스트 추출이 매우 어려우므로 
                 // Gemini에게 직접 파일의 일부를 텍스트로 읽어보라고 시도하거나 에러 메시지 반환
                 // Remove null bytes and other non-printable characters to avoid JSON issues
-                extractedText = req.file.buffer.toString('utf-8', 0, 5000).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+                extractedText = mainFile.buffer.toString('utf-8', 0, 5000).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
                 parts = [{ text: "이 파일은 바이너리 형식이 포함된 문서입니다. 가능한 한 텍스트를 추출하여 분석해주세요: " + extractedText }];
               }
             } catch (err) {
@@ -194,6 +203,46 @@ export function registerRoutes(app: Express): void {
           // 기타 텍스트 기반 파일 (HWP는 지원 안 함)
           else {
              // For older HWP or others, we skip for now
+          }
+
+          // ─── RAG 참고 파일 텍스트 추출 ──────────────────────────────────────────
+          let ragText = "";
+          if (ragFileData) {
+            try {
+              const ragName = Buffer.from(ragFileData.originalname, 'latin1').toString('utf8');
+              const ragExt = path.extname(ragName).toLowerCase();
+
+              if (ragExt === ".pdf") {
+                // PDF: base64로 인코딩하여 Gemini multi-part에 추가
+                const ragBase64 = ragFileData.buffer.toString("base64");
+                parts.push({
+                  inlineData: { data: ragBase64, mimeType: "application/pdf" }
+                });
+                ragText = "[RAG 파일이 PDF로 첨부되었습니다]";
+              } else if (ragExt === ".docx") {
+                const ragResult = await mammoth.extractRawText({ buffer: ragFileData.buffer });
+                ragText = ragResult.value.trim();
+              } else if (ragExt === ".txt") {
+                ragText = ragFileData.buffer.toString('utf-8').trim();
+              } else if (ragExt === ".hwpx" || ragExt === ".hwp") {
+                if (ragFileData.buffer.slice(0, 2).toString() === "PK") {
+                  const ragZip = await JSZip.loadAsync(ragFileData.buffer);
+                  const ragSections = Object.keys(ragZip.files).filter(n =>
+                    (n.startsWith("Contents/section") || n.startsWith("Section")) && n.endsWith(".xml")
+                  ).sort();
+                  let hwpxRagText = "";
+                  for (const fn of ragSections) {
+                    const content = await ragZip.files[fn].async("text");
+                    const matches = content.match(/<hp:t>([\s\S]*?)<\/hp:t>/g) || content.match(/<t>([\s\S]*?)<\/t>/g);
+                    if (matches) hwpxRagText += matches.map(m => m.replace(/<[^>]+>/g, "")).join(" ") + "\n";
+                  }
+                  ragText = hwpxRagText.trim();
+                }
+              }
+              console.log(`[RAG] 참고 파일 추출 완료: ${ragName}, 길이: ${ragText.length}`);
+            } catch (ragErr) {
+              console.error("[RAG] 참고 파일 추출 실패:", ragErr);
+            }
           }
 
           if (parts.length > 0) {
@@ -571,6 +620,16 @@ ${extractedText || "(파일에서 추출된 텍스트를 분석합니다)"}`;
             // Add level instruction to prompt
             if (levelInstruction) {
                 prompt += levelInstruction;
+            }
+
+            // ─── RAG 참고 자료 텍스트 주입 ──────────────────────────────────────
+            if (ragText && ragText.length > 10 && !ragText.startsWith("[RAG 파일이 PDF")) {
+              prompt += `\n\n---\n## 📎 참고 자료 (RAG Context)\n아래 자료를 참고하여 문제의 유형, 스타일, 난이도를 결정해 주세요. 이 자료는 예시 문제 또는 보조 설명으로 활용됩니다:\n\n${ragText.substring(0, 4000)}\n---`;
+            }
+
+            // ─── 사용자 커스텀 추가 지시사항 주입 ───────────────────────────────
+            if (customPrompt && customPrompt.trim().length > 0) {
+              prompt += `\n\n---\n## 📝 추가 지시사항 (User Instructions)\n아래 지시사항을 반드시 반영하여 문제를 생성해 주세요:\n\n${customPrompt.trim()}\n---`;
             }
 
             // Add prompt to parts
