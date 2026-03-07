@@ -1,5 +1,6 @@
 import { Express } from "express";
 import { storage } from "../storage";
+import { pool } from "../db";
 
 export function registerAdminRoutes(app: Express) {
   // 관리자 권한 확인 미들웨어
@@ -271,6 +272,86 @@ export function registerAdminRoutes(app: Express) {
     } catch (error) {
       console.error("Error fetching all overseas programs:", error);
       res.status(500).json({ message: "문제집 목록 조회 중 오류가 발생했습니다." });
+    }
+  });
+
+  // ─── 프롬프트 템플릿 관리 (관리자 전용) ───────────────────────────────────
+
+  // 전체 목록 조회
+  app.get("/api/admin/prompt-templates", requireAdmin, async (req, res) => {
+    try {
+      const result = await pool.query("SELECT * FROM prompt_templates ORDER BY id ASC");
+      res.json(result.rows);
+    } catch (error) {
+      console.error("Error fetching prompt templates:", error);
+      res.status(500).json({ message: "프롬프트 템플릿 조회 중 오류가 발생했습니다." });
+    }
+  });
+
+  // 단일 조회
+  app.get("/api/admin/prompt-templates/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const result = await pool.query("SELECT * FROM prompt_templates WHERE id = $1", [id]);
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: "템플릿을 찾을 수 없습니다." });
+      }
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error("Error fetching prompt template:", error);
+      res.status(500).json({ message: "서버 오류가 발생했습니다." });
+    }
+  });
+
+  // 수정
+  app.put("/api/admin/prompt-templates/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { name, role, task, constraints, output_format, is_active } = req.body;
+      const result = await pool.query(
+        `UPDATE prompt_templates
+         SET name=$1, role=$2, task=$3, constraints=$4, output_format=$5, is_active=$6, updated_at=NOW()
+         WHERE id=$7 RETURNING *`,
+        [name, role, task, constraints, output_format, is_active, id]
+      );
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: "템플릿을 찾을 수 없습니다." });
+      }
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error("Error updating prompt template:", error);
+      res.status(500).json({ message: "템플릿 수정 중 오류가 발생했습니다." });
+    }
+  });
+
+  // ─── 선생님이 사용하는 공개 프롬프트 조회 (활성화된 것만) ─────────────────
+  app.get("/api/prompt-templates", async (req, res) => {
+    try {
+      const result = await pool.query(
+        "SELECT id, type, name FROM prompt_templates WHERE is_active = true ORDER BY id ASC"
+      );
+      res.json(result.rows);
+    } catch (error) {
+      console.error("Error fetching active prompt templates:", error);
+      res.status(500).json({ message: "서버 오류가 발생했습니다." });
+    }
+  });
+
+  // 특정 타입의 전체 프롬프트 정보 조회 (AI 호출 시 사용)
+  app.get("/api/prompt-templates/:type", async (req, res) => {
+    try {
+      const { type } = req.params;
+      const result = await pool.query(
+        "SELECT * FROM prompt_templates WHERE type = $1 AND is_active = true",
+        [type]
+      );
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: "해당 유형의 템플릿을 찾을 수 없습니다." });
+      }
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error("Error fetching prompt template by type:", error);
+      res.status(500).json({ message: "서버 오류가 발생했습니다." });
     }
   });
 
