@@ -656,8 +656,8 @@ ${extractedText || "(파일에서 추출된 텍스트를 분석합니다)"}`;
             
             // Extract JSON from markdown code block if present (object or array)
             const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/)
-              || text.match(/(\[[\s\S]*\])/s)
-              || text.match(/(\{[\s\S]*\})/s);
+              || text.match(/(\[[\s\S]*\])/)
+              || text.match(/(\{[\s\S]*\})/);
 
             // 공통 JSON 이스케이프 정제 함수
             const sanitizeJson = (raw: string): string => {
