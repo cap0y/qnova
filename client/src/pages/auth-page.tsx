@@ -129,8 +129,14 @@ export default function AuthPage() {
         loginData.businessNumber = loginForm.businessNumber;
       }
 
-      await loginMutation.mutateAsync(loginData);
-      setLocation("/");
+      const result = await loginMutation.mutateAsync(loginData);
+      
+      // 선생님회원(business)인 경우 대시보드의 본문 분석 탭으로 이동
+      if (result.userType === "business") {
+        setLocation("/business-dashboard?tab=text-analysis");
+      } else {
+        setLocation("/");
+      }
     } catch (error: any) {
       console.error("Login failed:", error);
 
@@ -245,7 +251,11 @@ export default function AuthPage() {
   // Redirect if already logged in
   useEffect(() => {
     if (user) {
-      setLocation("/");
+      if (user.userType === "business") {
+        setLocation("/business-dashboard?tab=text-analysis");
+      } else {
+        setLocation("/");
+      }
     }
   }, [user, setLocation]);
 
@@ -265,9 +275,9 @@ export default function AuthPage() {
             {/* Left side - Form */}
             <div className="space-y-8">
               <div className="text-center">
-                <h2 className="text-3xl font-bold text-gray-900">교육플랫폼</h2>
+                <h2 className="text-3xl font-bold text-gray-900">환영합니다!</h2>
                 <p className="mt-2 text-gray-600">
-                  전문가를 위한 최고의 교육교육 플랫폼
+                출제를 시작하시려면 로그인해 주세요.
                 </p>
               </div>
 
@@ -817,10 +827,10 @@ export default function AuthPage() {
                   <i className="fas fa-graduation-cap"></i>
                 </div>
                 <h3 className="text-2xl font-bold">
-                  교육 전문가를 위한 플랫폼
+                선생님의 출제 시간을 80% 단축하는
                 </h3>
                 <p className="text-blue-100 text-lg">
-                  최고 수준의 교육 교육과 전문성 개발 기회를 제공합니다
+                ✨ 인공지능 출제 파트너, Qnova
                 </p>
                 <div className="grid grid-cols-2 gap-4 mt-8">
                   <div className="text-center">
