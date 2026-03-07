@@ -489,6 +489,20 @@ export const careerApplications = pgTable("career_applications", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Prompt Templates table
+export const promptTemplates = pgTable("prompt_templates", {
+  id: serial("id").primaryKey(),
+  type: text("type").notNull().unique(), // e.g., "grammar", "vocabulary", "comprehension"
+  name: text("name").notNull(), // e.g., "문법 문제", "어휘 문제", "독해 문제"
+  role: text("role").notNull(), // System Role definition
+  task: text("task").notNull(), // Specific Task description
+  constraints: text("constraints").notNull(), // Guidelines and restrictions
+  outputFormat: text("output_format").notNull(), // JSON structure guideline
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 export const insertCourseSchema = createInsertSchema(courses).omit({ id: true });
 export const insertInstructorSchema = createInsertSchema(instructors).omit({ id: true });
@@ -512,6 +526,7 @@ export const insertInquirySchema = createInsertSchema(inquiries).omit({ id: true
 export const insertAuthorApplicationSchema = createInsertSchema(authorApplications).omit({ id: true });
 export const insertBusinessPartnershipSchema = createInsertSchema(businessPartnerships).omit({ id: true });
 export const insertCareerApplicationSchema = createInsertSchema(careerApplications).omit({ id: true });
+export const insertPromptTemplateSchema = createInsertSchema(promptTemplates).omit({ id: true });
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -561,3 +576,5 @@ export type BusinessPartnership = typeof businessPartnerships.$inferSelect;
 export type InsertBusinessPartnership = z.infer<typeof insertBusinessPartnershipSchema>;
 export type CareerApplication = typeof careerApplications.$inferSelect;
 export type InsertCareerApplication = z.infer<typeof insertCareerApplicationSchema>;
+export type PromptTemplate = typeof promptTemplates.$inferSelect;
+export type InsertPromptTemplate = z.infer<typeof insertPromptTemplateSchema>;
