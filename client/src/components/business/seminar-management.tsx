@@ -49,6 +49,7 @@ import {
   MessageSquarePlus,
   ChevronDown,
   ChevronUp,
+  Save,
 } from "lucide-react";
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
@@ -82,8 +83,19 @@ export default function SeminarManagement({ user }: SeminarManagementProps) {
 
   // RAG & Custom Prompt State
   const [ragFile, setRagFile] = useState<File | null>(null);
-  const [customPrompt, setCustomPrompt] = useState<string>("");
+  const [customPrompt, setCustomPrompt] = useState<string>(() => {
+    try { return localStorage.getItem("qnova_custom_prompt") || ""; } catch { return ""; }
+  });
+  const [customPromptSaved, setCustomPromptSaved] = useState(false);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
+
+  const saveCustomPrompt = () => {
+    try {
+      localStorage.setItem("qnova_custom_prompt", customPrompt);
+      setCustomPromptSaved(true);
+      setTimeout(() => setCustomPromptSaved(false), 2000);
+    } catch {}
+  };
 
   // Category State
   const [selectedCategory, setSelectedCategory] = useState<string>("analysis");
@@ -999,9 +1011,25 @@ export default function SeminarManagement({ user }: SeminarManagementProps) {
 
                   {/* 커스텀 프롬프트 입력 */}
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide flex items-center gap-1">
-                      <MessageSquarePlus className="w-3 h-3" /> 추가 지시사항 (선택)
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide flex items-center gap-1">
+                        <MessageSquarePlus className="w-3 h-3" /> 추가 지시사항 (선택)
+                      </label>
+                      <button
+                        onClick={saveCustomPrompt}
+                        className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                          customPromptSaved
+                            ? "bg-green-100 text-green-600"
+                            : "bg-gray-100 text-gray-500 hover:bg-purple-100 hover:text-[#6E49E9]"
+                        }`}
+                      >
+                        {customPromptSaved ? (
+                          <><Check className="w-3 h-3" /> 저장됨</>
+                        ) : (
+                          <><Save className="w-3 h-3" /> 저장</>
+                        )}
+                      </button>
+                    </div>
                     <Textarea
                       placeholder={`예) "3번 문제는 빈칸 추론으로 만들어줘"\n"단어 난이도는 고등 수준으로 맞춰줘"\n"지문의 2~3단락에 집중해서 문제를 출제해"`}
                       value={customPrompt}
