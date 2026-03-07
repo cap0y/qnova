@@ -40,6 +40,8 @@ import {
   Printer,
   Search,
   Key,
+  Sparkles,
+  ChevronRight,
 } from "lucide-react";
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
@@ -67,6 +69,9 @@ export default function SeminarManagement({ user }: SeminarManagementProps) {
 
   // Level State for Analysis
   const [selectedLevel, setSelectedLevel] = useState<string>("all");
+
+  // Preset State for AI Problem Generation
+  const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
 
   // Category State
   const [selectedCategory, setSelectedCategory] = useState<string>("analysis");
@@ -230,6 +235,13 @@ export default function SeminarManagement({ user }: SeminarManagementProps) {
     enabled: !!user?.id,
   });
 
+  // 프롬프트 프리셋 목록 조회 (관리자가 설정한 활성화된 유형)
+  const { data: promptTemplates, isLoading: promptTemplatesLoading } = useQuery<
+    Array<{ id: number; type: string; name: string }>
+  >({
+    queryKey: ["/api/prompt-templates"],
+  });
+
   // Analyze Mutation
   const analyzeMutation = useMutation({
     mutationFn: async (file: File) => {
@@ -237,6 +249,9 @@ export default function SeminarManagement({ user }: SeminarManagementProps) {
       formData.append("file", file);
       formData.append("category", selectedCategory);
       formData.append("level", selectedLevel); // Add level to formData
+      if (selectedPreset) {
+        formData.append("presetType", selectedPreset); // 선택된 문제 유형 프리셋 전달
+      }
       
       const headers: Record<string, string> = {};
       if (apiKey) {
@@ -619,6 +634,135 @@ export default function SeminarManagement({ user }: SeminarManagementProps) {
     link.href = URL.createObjectURL(blob);
     link.download = `${title}.hwpx`;
     link.click();
+  };
+
+  // ─── 문제 유형 프리셋 우측 패널 ────────────────────────────────────────────
+  const renderPresetPanel = () => {
+    const selectedTemplateName = promptTemplates?.find(
+      (t) => t.type === selectedPreset
+    )?.name;
+
+    return (
+      <div className="w-52 flex flex-col h-full bg-white border-l shrink-0">
+        {/* 패널 헤더 */}
+        <div className="p-4 pb-3 border-b bg-gradient-to-b from-purple-50/80 to-white shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="p-1 bg-purple-100 rounded-lg">
+              <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+            </div>
+            <h3 className="text-sm font-bold text-gray-800">문제 유형</h3>
+          </div>
+          <p className="text-[10px] text-gray-400 mt-1.5 leading-tight">
+            AI가 출제할 문제 유형을 선택하세요. 선택한 프리셋을 기반으로 균일한 품질의 문제가 생성됩니다.
+          </p>
+        </div>
+
+        {/* 프리셋 목록 */}
+        <div className="flex-1 overflow-y-auto p-3 space-y-1">
+          {/* 선택 안함 옵션 */}
+          <div
+            onClick={() => setSelectedPreset(null)}
+            className={`flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer transition-all group ${
+              selectedPreset === null
+                ? "bg-gray-100 text-gray-700"
+                : "hover:bg-gray-50 text-gray-400 hover:text-gray-600"
+            }`}
+          >
+            <span className="text-xs font-medium">선택 안함</span>
+            {selectedPreset === null && (
+              <Check className="w-3 h-3 text-gray-500 shrink-0" />
+            )}
+          </div>
+
+          <div className="border-t border-gray-100 my-2" />
+
+          {/* 프리셋 아이템 목록 */}
+          {promptTemplatesLoading ? (
+            // 로딩 스켈레톤
+            <div className="space-y-1.5">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div
+                  key={i}
+                  className="h-10 bg-gray-100 rounded-xl animate-pulse"
+                />
+              ))}
+            </div>
+          ) : promptTemplates && promptTemplates.length > 0 ? (
+            <div className="space-y-1">
+              {promptTemplates.map((template) => {
+                const isSelected = selectedPreset === template.type;
+                return (
+                  <div
+                    key={template.id}
+                    onClick={() =>
+                      setSelectedPreset(
+                        isSelected ? null : template.type
+                      )
+                    }
+                    className={`flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all group ${
+                      isSelected
+                        ? "bg-[#F3F0FF] text-[#6E49E9] shadow-sm"
+                        : "hover:bg-gray-50 text-gray-700 hover:text-[#6E49E9]"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                      {/* 선택 인디케이터 점 */}
+                      <div
+                        className={`w-2 h-2 rounded-full shrink-0 transition-colors ${
+                          isSelected
+                            ? "bg-[#6E49E9]"
+                            : "bg-gray-200 group-hover:bg-purple-300"
+                        }`}
+                      />
+                      <span className="text-[12px] font-semibold leading-tight truncate">
+                        {template.name}
+                      </span>
+                    </div>
+                    {isSelected ? (
+                      <Check className="w-3.5 h-3.5 text-[#6E49E9] shrink-0 ml-1" />
+                    ) : (
+                      <ChevronRight className="w-3 h-3 text-gray-300 shrink-0 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            // 프리셋 없음 안내
+            <div className="flex flex-col items-center justify-center py-8 text-center px-2">
+              <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center mb-3">
+                <Sparkles className="w-5 h-5 text-gray-300" />
+              </div>
+              <p className="text-[11px] text-gray-400 font-medium leading-relaxed">
+                등록된 문제 유형이 없습니다.
+                <br />
+                관리자에게 문의하세요.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* 선택된 프리셋 표시 (하단 고정) */}
+        {selectedPreset && selectedTemplateName && (
+          <div className="p-3 border-t bg-purple-50/60 shrink-0">
+            <div className="bg-white border border-purple-200 rounded-xl p-3 shadow-sm">
+              <div className="flex items-center gap-1.5 mb-1">
+                <div className="w-1.5 h-1.5 bg-[#6E49E9] rounded-full" />
+                <p className="text-[9px] font-bold text-purple-600 uppercase tracking-wide">
+                  선택된 프리셋
+                </p>
+              </div>
+              <p className="text-xs font-bold text-gray-800 leading-tight">
+                {selectedTemplateName}
+              </p>
+              <p className="text-[9px] text-gray-400 mt-1 leading-tight">
+                파일 분석 시 이 유형으로 문제가 생성됩니다.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    );
   };
 
   const renderCategorySidebar = () => {
@@ -1729,6 +1873,7 @@ export default function SeminarManagement({ user }: SeminarManagementProps) {
             <div className="p-8 space-y-6">{renderTocAndDetails()}{renderTextContent()}</div> 
           )}
         </div>
+        {renderPresetPanel()}
       </div>
       <Dialog open={showSampleImages} onOpenChange={setShowSampleImages}>
         <DialogContent className="max-w-3xl">
